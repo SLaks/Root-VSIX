@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.ExtensionManager;
@@ -28,12 +29,30 @@ namespace Root_VSIX
             string version;
             if (args.Length == 3)
             {
-                version = args[1];
+                version = args[0];
                 args = args.Skip(1).ToArray();
             }
             else
             {
-                version = FindLatestVsVersion().ToString();
+                version = FindVsVersions().LastOrDefault().ToString();
+                if (string.IsNullOrEmpty(version))
+                {
+                    Console.Error.WriteLine("Cannot find any installed copies of Visual Studio.");
+                    return 1;
+                }
+            }
+
+            string vsExe = GetVersionExe(version);
+            if (string.IsNullOrEmpty(vsExe))
+            {
+                Console.Error.WriteLine("Cannot find Visual Studio " + version);
+                Console.Error.WriteLine("Detected versions:");
+                Console.Error.WriteLine(string.Join(
+                    Environment.NewLine,
+                    FindVsVersions()
+                        .Where(v => !string.IsNullOrEmpty(GetVersionExe(v.ToString())))
+                ));
+                return 1;
             }
 
             if (!File.Exists(args[1]))
@@ -44,12 +63,21 @@ namespace Root_VSIX
             var vsix = ExtensionManagerService.CreateInstallableExtension(args[1]);
 
             Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + version + " /RootSuffix " + args[0]);
-            Install(GetVersionExe(version), vsix, args[0]);
+
+            try
+            {
+                Install(vsExe, vsix, args[0]);
+            }
+            catch (AlreadyInstalledException ex)
+            {
+                Console.Error.WriteLine("Error: " + ex.Message);
+                return 1;
+            }
 
             return 0;
         }
 
-        public static decimal FindLatestVsVersion()
+        public static IEnumerable<decimal?> FindVsVersions()
         {
             using (var software = Registry.LocalMachine.OpenSubKey("SOFTWARE"))
             using (var ms = software.OpenSubKey("Microsoft"))
@@ -63,9 +91,7 @@ namespace Root_VSIX
                     return v;
                 })
                 .Where(d => d.HasValue)
-                .OrderByDescending(d => d)
-                .First()
-                .Value;
+                .OrderBy(d => d);
         }
 
         public static string GetVersionExe(string version)
