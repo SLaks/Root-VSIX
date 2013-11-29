@@ -32,6 +32,12 @@ namespace Root_VSIX
             }
 
             string vsExe = GetVersionExe(version);
+            if (string.IsNullOrEmpty(vsExe) && version.All(char.IsNumber))
+            {
+                version += ".0";
+                vsExe = GetVersionExe(version);
+            }
+
             if (string.IsNullOrEmpty(vsExe))
             {
                 Console.Error.WriteLine("Cannot find Visual Studio " + version);
