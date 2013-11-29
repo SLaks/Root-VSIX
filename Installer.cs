@@ -14,15 +14,7 @@ namespace Root_VSIX
         {
             if (args.Length != 2 && args.Length != 3)
             {
-                Console.Error.WriteLine(typeof(Installer).Assembly.GetName().Name);
-                Console.Error.WriteLine("Installs local VSIX extensions to custom Visual Studio RootSuffixes");
-                Console.Error.WriteLine();
-                Console.Error.WriteLine("Usage:");
-                Console.Error.WriteLine();
-                Console.Error.WriteLine("  " + typeof(Installer).Assembly.GetName().Name + " [<VS version>] <RootSuffix> <Path to VSIX>");
-                Console.Error.WriteLine();
-                Console.Error.WriteLine("The Visual Studio version must be specified as the internal version number (12.0 is 2013).");
-                Console.Error.WriteLine("If omitted, the extension will be installed to the latest version of Visual Studio installed on the computer.");
+                PrintUsage();
                 return 1;
             }
 
@@ -36,30 +28,20 @@ namespace Root_VSIX
             {
                 version = FindVsVersions().LastOrDefault().ToString();
                 if (string.IsNullOrEmpty(version))
-                {
-                    Console.Error.WriteLine("Cannot find any installed copies of Visual Studio.");
-                    return 1;
-                }
+                    return PrintError("Cannot find any installed copies of Visual Studio.");
             }
 
             string vsExe = GetVersionExe(version);
             if (string.IsNullOrEmpty(vsExe))
             {
                 Console.Error.WriteLine("Cannot find Visual Studio " + version);
-                Console.Error.WriteLine("Detected versions:");
-                Console.Error.WriteLine(string.Join(
-                    Environment.NewLine,
-                    FindVsVersions()
-                        .Where(v => !string.IsNullOrEmpty(GetVersionExe(v.ToString())))
-                ));
+                PrintVsVersions();
                 return 1;
             }
 
             if (!File.Exists(args[1]))
-            {
-                Console.Error.WriteLine("Cannot find VSIX file " + args[1]);
-                return 1;
-            }
+                return PrintError("Cannot find VSIX file " + args[1]);
+
             var vsix = ExtensionManagerService.CreateInstallableExtension(args[1]);
 
             Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + version + " /RootSuffix " + args[0]);
@@ -70,8 +52,7 @@ namespace Root_VSIX
             }
             catch (AlreadyInstalledException ex)
             {
-                Console.Error.WriteLine("Error: " + ex.Message);
-                return 1;
+                return PrintError("Error: " + ex.Message);
             }
 
             return 0;
@@ -107,5 +88,34 @@ namespace Root_VSIX
                 ems.Install(vsix, perMachine: false);
             }
         }
+
+        #region Output Messages
+        private static int PrintError(string message)
+        {
+            Console.Error.WriteLine(message);
+            return 1;
+        }
+        private static void PrintUsage()
+        {
+            Console.Error.WriteLine(typeof(Installer).Assembly.GetName().Name);
+            Console.Error.WriteLine("Installs local VSIX extensions to custom Visual Studio RootSuffixes");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Usage:");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("  " + typeof(Installer).Assembly.GetName().Name + " [<VS version>] <RootSuffix> <Path to VSIX>");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("The Visual Studio version must be specified as the internal version number (12.0 is 2013).");
+            Console.Error.WriteLine("If omitted, the extension will be installed to the latest version of Visual Studio installed on the computer.");
+        }
+        private static void PrintVsVersions()
+        {
+            Console.Error.WriteLine("Detected versions:");
+            Console.Error.WriteLine(string.Join(
+                Environment.NewLine,
+                FindVsVersions()
+                    .Where(v => !string.IsNullOrEmpty(GetVersionExe(v.ToString())))
+            ));
+        }
+        #endregion
     }
 }
