@@ -56,7 +56,7 @@ namespace Root_VSIX
             {
                 Install(vsExe, vsix, args[0]);
             }
-            catch (AlreadyInstalledException ex)
+            catch (Exception ex)
             {
                 return PrintError("Error: " + ex.Message);
             }
