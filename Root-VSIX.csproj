@@ -52,6 +52,13 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(DevEnvDir)\..\..\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\Microsoft.VisualStudio.Shell.12.0.dll</HintPath>
     </Reference>
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Shell.Interop\Shell.Interop.csproj">
+      <Project>{2ae4160d-f51a-4374-9f40-ecee109d0f0d}</Project>
+      <Name>Shell.Interop</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
