@@ -5,6 +5,7 @@ using System.Linq;
 using Microsoft.VisualStudio.ExtensionManager;
 using Microsoft.VisualStudio.Settings;
 using Microsoft.Win32;
+using System.Globalization;
 
 namespace Root_VSIX
 {
@@ -73,7 +74,7 @@ namespace Root_VSIX
                         .Select(s =>
                 {
                     decimal v;
-                    if (!decimal.TryParse(s, out v))
+                    if (!decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out v))
                         return new decimal?();
                     return v;
                 })
