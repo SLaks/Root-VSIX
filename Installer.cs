@@ -5,7 +5,6 @@ using System.Linq;
 using Microsoft.VisualStudio.ExtensionManager;
 using Microsoft.VisualStudio.Settings;
 using Microsoft.Win32;
-using System.Threading;
 using System.Globalization;
 
 namespace Root_VSIX
@@ -14,10 +13,6 @@ namespace Root_VSIX
     {
         static int Main(string[] args)
         {
-            // Make Root-VSIX work on machines with different cultures
-            Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-            Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
-
             if (args.Length != 2 && args.Length != 3)
             {
                 PrintUsage();
@@ -79,7 +74,7 @@ namespace Root_VSIX
                         .Select(s =>
                 {
                     decimal v;
-                    if (!decimal.TryParse(s, out v))
+                    if (!decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out v))
                         return new decimal?();
                     return v;
                 })
