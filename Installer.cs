@@ -13,49 +13,47 @@ namespace Root_VSIX
     {
         static int Main(string[] args)
         {
-            if (args.Length != 2 && args.Length != 3)
+            var programOptions = new ProgramOptions();
+            if (!CommandLine.Parser.Default.ParseArguments(args, programOptions))
             {
-                PrintUsage();
-                return 1;
+                Environment.Exit(1);
             }
 
-            string version;
-            if (args.Length == 3)
+            if (string.IsNullOrEmpty(programOptions.VisualStudioVersion))
             {
-                version = args[0];
-                args = args.Skip(1).ToArray();
-            }
-            else
-            {
-                version = FindVsVersions().LastOrDefault().ToString();
-                if (string.IsNullOrEmpty(version))
-                    return PrintError("Cannot find any installed copies of Visual Studio.");
+                programOptions.VisualStudioVersion = FindVsVersions().LastOrDefault().ToString();
             }
 
-            string vsExe = GetVersionExe(version);
-            if (string.IsNullOrEmpty(vsExe) && version.All(char.IsNumber))
+            if (string.IsNullOrEmpty(programOptions.VisualStudioVersion))
             {
-                version += ".0";
-                vsExe = GetVersionExe(version);
+                return PrintError("Cannot find any installed copies of Visual Studio.");
             }
 
+            if (programOptions.VisualStudioVersion.All(char.IsNumber))
+            {
+                programOptions.VisualStudioVersion += ".0";
+            }
+
+            var vsExe = GetVersionExe(programOptions.VisualStudioVersion);
             if (string.IsNullOrEmpty(vsExe))
             {
-                Console.Error.WriteLine("Cannot find Visual Studio " + version);
+                Console.Error.WriteLine("Cannot find Visual Studio " + programOptions.VisualStudioVersion);
                 PrintVsVersions();
                 return 1;
             }
 
-            if (!File.Exists(args[1]))
-                return PrintError("Cannot find VSIX file " + args[1]);
+            if (!File.Exists(programOptions.VSIXPath))
+            {
+                return PrintError("Cannot find VSIX file " + programOptions.VSIXPath);
+            }
 
-            var vsix = ExtensionManagerService.CreateInstallableExtension(args[1]);
+            var vsix = ExtensionManagerService.CreateInstallableExtension(programOptions.VSIXPath);
 
-            Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + version + " /RootSuffix " + args[0]);
+            Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + programOptions.VisualStudioVersion + " /RootSuffix " + programOptions.RootSuffix);
 
             try
             {
-                Install(vsExe, vsix, args[0]);
+                Install(vsExe, vsix, programOptions.RootSuffix);
             }
             catch (Exception ex)
             {
@@ -101,18 +99,6 @@ namespace Root_VSIX
         {
             Console.Error.WriteLine(message);
             return 1;
-        }
-        private static void PrintUsage()
-        {
-            Console.Error.WriteLine(typeof(Installer).Assembly.GetName().Name);
-            Console.Error.WriteLine("Installs local VSIX extensions to custom Visual Studio RootSuffixes");
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("Usage:");
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("  " + typeof(Installer).Assembly.GetName().Name + " [<VS version>] <RootSuffix> <Path to VSIX>");
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("The Visual Studio version must be specified as the internal version number (12.0 is 2013).");
-            Console.Error.WriteLine("If omitted, the extension will be installed to the latest version of Visual Studio installed on the computer.");
         }
         private static void PrintVsVersions()
         {
