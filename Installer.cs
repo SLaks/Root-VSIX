@@ -1,11 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using Microsoft.VisualStudio.ExtensionManager;
+﻿using Microsoft.VisualStudio.ExtensionManager;
 using Microsoft.VisualStudio.Settings;
 using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 
 namespace Root_VSIX
 {
@@ -49,11 +49,18 @@ namespace Root_VSIX
 
             var vsix = ExtensionManagerService.CreateInstallableExtension(programOptions.VSIXPath);
 
-            Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + programOptions.VisualStudioVersion + " /RootSuffix " + programOptions.RootSuffix);
-
             try
             {
-                Install(vsExe, vsix, programOptions.RootSuffix);
+                if (!String.IsNullOrEmpty(programOptions.RootSuffix))
+                {
+                    Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + programOptions.VisualStudioVersion + " /RootSuffix " + programOptions.RootSuffix);
+                    InstallIntoCustomRoot(vsExe, vsix, programOptions.RootSuffix);
+                }
+                else
+                {
+                    Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + programOptions.VisualStudioVersion + " in default root");
+                    InstallIntoDefaultRoot(vsExe, vsix);
+                }
             }
             catch (Exception ex)
             {
@@ -85,12 +92,21 @@ namespace Root_VSIX
             return Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\" + version + @"\Setup\VS", "EnvironmentPath", null) as string;
         }
 
-        public static void Install(string vsExe, IInstallableExtension vsix, string rootSuffix)
+        public static void InstallIntoCustomRoot(string vsExe, IInstallableExtension vsix, string rootSuffix)
         {
-            using (var esm = ExternalSettingsManager.CreateForApplication(vsExe, rootSuffix))
+            Install(vsix, () => ExternalSettingsManager.CreateForApplication(vsExe, rootSuffix));
+        }
+
+        public static void InstallIntoDefaultRoot(string vsExe, IInstallableExtension vsix)
+        {
+            Install(vsix, () => ExternalSettingsManager.CreateForApplication(vsExe));
+        }
+
+        public static void Install(IInstallableExtension vsix, Func<ExternalSettingsManager> GetExternalSettingsManager)
+        {
+            using (var externalSettingsManager = GetExternalSettingsManager())
             {
-                var ems = new ExtensionManagerService(esm);
-                ems.Install(vsix, perMachine: false);
+                (new ExtensionManagerService(externalSettingsManager)).Install(vsix, perMachine: false);
             }
         }
 
