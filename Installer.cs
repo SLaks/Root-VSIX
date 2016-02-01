@@ -1,11 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using Microsoft.VisualStudio.ExtensionManager;
+﻿using Microsoft.VisualStudio.ExtensionManager;
 using Microsoft.VisualStudio.Settings;
 using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 
 namespace Root_VSIX
 {
@@ -13,49 +13,54 @@ namespace Root_VSIX
     {
         static int Main(string[] args)
         {
-            if (args.Length != 2 && args.Length != 3)
+            var programOptions = new ProgramOptions();
+            if (!CommandLine.Parser.Default.ParseArguments(args, programOptions))
             {
-                PrintUsage();
-                return 1;
+                Environment.Exit(1);
             }
 
-            string version;
-            if (args.Length == 3)
+            if (string.IsNullOrEmpty(programOptions.VisualStudioVersion))
             {
-                version = args[0];
-                args = args.Skip(1).ToArray();
-            }
-            else
-            {
-                version = FindVsVersions().LastOrDefault().ToString();
-                if (string.IsNullOrEmpty(version))
-                    return PrintError("Cannot find any installed copies of Visual Studio.");
+                programOptions.VisualStudioVersion = FindVsVersions().LastOrDefault().ToString();
             }
 
-            string vsExe = GetVersionExe(version);
-            if (string.IsNullOrEmpty(vsExe) && version.All(char.IsNumber))
+            if (string.IsNullOrEmpty(programOptions.VisualStudioVersion))
             {
-                version += ".0";
-                vsExe = GetVersionExe(version);
+                return PrintError("Cannot find any installed copies of Visual Studio.");
             }
 
+            if (programOptions.VisualStudioVersion.All(char.IsNumber))
+            {
+                programOptions.VisualStudioVersion += ".0";
+            }
+
+            var vsExe = GetVersionExe(programOptions.VisualStudioVersion);
             if (string.IsNullOrEmpty(vsExe))
             {
-                Console.Error.WriteLine("Cannot find Visual Studio " + version);
+                Console.Error.WriteLine("Cannot find Visual Studio " + programOptions.VisualStudioVersion);
                 PrintVsVersions();
                 return 1;
             }
 
-            if (!File.Exists(args[1]))
-                return PrintError("Cannot find VSIX file " + args[1]);
+            if (!File.Exists(programOptions.VSIXPath))
+            {
+                return PrintError("Cannot find VSIX file " + programOptions.VSIXPath);
+            }
 
-            var vsix = ExtensionManagerService.CreateInstallableExtension(args[1]);
-
-            Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + version + " /RootSuffix " + args[0]);
+            var vsix = ExtensionManagerService.CreateInstallableExtension(programOptions.VSIXPath);
 
             try
             {
-                Install(vsExe, vsix, args[0]);
+                if (!String.IsNullOrEmpty(programOptions.RootSuffix))
+                {
+                    Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + programOptions.VisualStudioVersion + " /RootSuffix " + programOptions.RootSuffix);
+                    InstallIntoCustomRoot(vsExe, vsix, programOptions.RootSuffix);
+                }
+                else
+                {
+                    Console.WriteLine("Installing " + vsix.Header.Name + " version " + vsix.Header.Version + " to Visual Studio " + programOptions.VisualStudioVersion + " in default root");
+                    InstallIntoDefaultRoot(vsExe, vsix);
+                }
             }
             catch (Exception ex)
             {
@@ -87,12 +92,21 @@ namespace Root_VSIX
             return Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\" + version + @"\Setup\VS", "EnvironmentPath", null) as string;
         }
 
-        public static void Install(string vsExe, IInstallableExtension vsix, string rootSuffix)
+        public static void InstallIntoCustomRoot(string vsExe, IInstallableExtension vsix, string rootSuffix)
         {
-            using (var esm = ExternalSettingsManager.CreateForApplication(vsExe, rootSuffix))
+            Install(vsix, () => ExternalSettingsManager.CreateForApplication(vsExe, rootSuffix));
+        }
+
+        public static void InstallIntoDefaultRoot(string vsExe, IInstallableExtension vsix)
+        {
+            Install(vsix, () => ExternalSettingsManager.CreateForApplication(vsExe));
+        }
+
+        public static void Install(IInstallableExtension vsix, Func<ExternalSettingsManager> GetExternalSettingsManager)
+        {
+            using (var externalSettingsManager = GetExternalSettingsManager())
             {
-                var ems = new ExtensionManagerService(esm);
-                ems.Install(vsix, perMachine: false);
+                (new ExtensionManagerService(externalSettingsManager)).Install(vsix, perMachine: false);
             }
         }
 
@@ -101,18 +115,6 @@ namespace Root_VSIX
         {
             Console.Error.WriteLine(message);
             return 1;
-        }
-        private static void PrintUsage()
-        {
-            Console.Error.WriteLine(typeof(Installer).Assembly.GetName().Name);
-            Console.Error.WriteLine("Installs local VSIX extensions to custom Visual Studio RootSuffixes");
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("Usage:");
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("  " + typeof(Installer).Assembly.GetName().Name + " [<VS version>] <RootSuffix> <Path to VSIX>");
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("The Visual Studio version must be specified as the internal version number (12.0 is 2013).");
-            Console.Error.WriteLine("If omitted, the extension will be installed to the latest version of Visual Studio installed on the computer.");
         }
         private static void PrintVsVersions()
         {
